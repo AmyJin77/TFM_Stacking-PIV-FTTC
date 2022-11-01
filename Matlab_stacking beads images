@@ -1,0 +1,136 @@
+%% used for stacking beads images one by one based on the name matching
+%% relax images will be the 1st image of the stack
+%% be careful about the naming rule
+
+%% *** Amy ***
+%% *** Yang's Lab - UNL ***
+
+clc;clear;
+close all;
+startingFolder = 'C:\Users\TFM'; % change the path
+
+%load image directory
+imfilepath = uigetdir(startingFolder);
+if ~imfilepath
+    return;
+end
+mkdir(imfilepath, 'Stacks');
+d = dir(imfilepath);
+
+for i = 1:length(d)
+
+    filename = d(i).name;
+    namesplit = strsplit(filename,'.');
+    if ~strcmp(namesplit{end},'tif') %Check if file is a .tif
+        valArray{2,i} = 0;
+        continue
+    end
+    namesplit = num2str(namesplit{1});
+    namesplit1 = strsplit((namesplit),'_');
+    
+    pathsplit = strsplit(imfilepath,'\');
+    
+    valArray{2,i} = 1;
+    
+    %It is an image file. Get info:
+
+    valArray{3,i} = namesplit1 {2}; 
+
+    if contains (namesplit1{1}, '-')
+       namesplit2 = strsplit (namesplit1{1}, '-');
+       valArray{4,i} = namesplit2 {1};
+       valArray{5,i} = namesplit2 {2};
+    else
+       valArray{4,i} = namesplit1 {1};
+       valArray{5,i} = num2str(1);
+    end
+    
+    valArray{6,i} = imread(fullfile(imfilepath,d(i).name));
+    
+end
+
+%clear out data that is not an image
+for i = 1:length(d)
+    j = length(d)-i+1;
+    if valArray{2,j} == 0
+        valArray(:,j) = [];
+    end
+end
+
+drug = pathsplit{end}; %get drug info
+
+valArrayBead = cell(6,length(valArray));
+j=1;
+for i = 1:length(valArray)
+    if ~strcmp (valArray (3,i),'ch00')
+        imBF = valArray{6,i};
+        imnumBF = valArray{4,i};
+        newpath = strcat(imfilepath,'\Stacks\');
+        newnameBF=strcat(drug,'_', valArray{4,i},'-',valArray{5,i},'_',valArray{3,i});
+        mkdir(newpath, imnumBF);
+        saveFileNameBF = strcat (newpath, imnumBF, '\', newnameBF, '.tif');
+        imwrite (imBF, saveFileNameBF)
+    else
+        valArrayBead(:,j)= valArray(:,i);
+        j=j+1;
+        
+    end
+end
+
+while 1
+    clear imageset
+    vals = [1];
+    imageset = valArrayBead(:,1);
+    %get data from first column
+    imtype = valArrayBead{3,1};
+    imnum = valArrayBead{4,1};
+    imorder = valArrayBead{5,1};
+ 
+    
+    %compare with other columns
+    for i = 2:size(valArrayBead,2)
+        imtype2 = valArrayBead{3,i};
+        imnum2 = valArrayBead{4,i};
+        if strcmp(imtype,imtype2) && strcmp(imnum,imnum2)
+            vals(end+1) = i;
+            imageset = [imageset(:,:),valArrayBead(:,i)];
+        end
+    end
+    
+    %Make sure data set contains all needed info, and if so analyze the set
+    if length(vals) == 2
+        tense = [];
+        relax = [];
+        
+        for i = 1:2
+            imorder = imageset{5,i};
+            im = imageset{6,i};
+            if strcmp(imorder,'1')
+                tense = rgb2gray(im);
+            elseif strcmp(imorder,'2')
+                relax = rgb2gray(im);
+
+            end
+        end
+        if ~isempty(tense) && ~isempty(relax) 
+            newpath = strcat(imfilepath,'\Stacks\');
+            mkdir(newpath, imnum);
+            saveFileName = strcat (newpath, imnum, '\', drug, '_', imnum, '.tif');
+            imwrite(relax, saveFileName, "WriteMode", "append", "Compression", "none"); % write relax images first
+            imwrite(tense, saveFileName, "WriteMode", "append", "Compression", "none"); % stack tense images on the relax one           
+        end
+    end
+    
+    warning('off')
+    
+    %Clear out analyzed images from valArray
+    for i = 1:length(vals)
+        valArrayBead(:,vals(length(vals)-i+1)) = [];
+    end
+    
+    %if every image has been processed, break out of loop
+    if isempty(valArrayBead)
+        break;
+    end
+
+end
